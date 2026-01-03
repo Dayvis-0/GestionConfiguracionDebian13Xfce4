@@ -18,7 +18,7 @@ class XFCEConfigManager:
         self.xfce_config_path = Path.home() / ".config" / "xfce4"
         self.backup_dir = Path("backups")
         self.current_config_dir = Path("current_config")
-        self.local_xfce_dir = Path("xfce4")
+        self.local_xfce_dir = Path("Configuraciones") / "xfce4"
         
     def detect_environment(self):
         """Detecta si es Linux y XFCE"""
@@ -110,36 +110,110 @@ class XFCEConfigManager:
             return False
     
     def replace_local_xfce_with_current(self):
-        """Reemplaza el xfce4 local con la configuración guardada"""
-        if not (self.current_config_dir / "xfce4").exists():
-            print("❌ No existe configuración guardada en current_config/")
-            input("Presione Enter para continuar...")
-            return
+        """Reemplaza el xfce4 local con la configuración guardada o backup"""
+        print("🔄 Reemplazando configuración de este repo...")
         
-        print("🔄 Reemplazando xfce4 local con configuración guardada...")
-        
-        confirm = input("¿Esto reemplazará tu carpeta xfce4/ local. Continuar? (s/N): ")
-        if confirm.lower() != 's':
-            print("❌ Operación cancelada")
-            input("Presione Enter para continuar...")
-            return
+        print("   1. Reemplazar con config guardada")
+        print("   2. Reemplazar con backup")
+        print("   3. Volver al menú principal")
         
         try:
-            # Eliminar xfce4 local
-            if self.local_xfce_dir.exists():
-                shutil.rmtree(self.local_xfce_dir)
+            choice = int(input("\nSelecciona opción (1-3): "))
             
-            # Copiar configuración guardada a xfce4 local
-            shutil.copytree(self.current_config_dir / "xfce4", self.local_xfce_dir)
+            if choice == 3:
+                return
             
-            size = sum(f.stat().st_size for f in self.local_xfce_dir.rglob('*') if f.is_file())
-            size_mb = size / (1024 * 1024)
+            if choice == 1:
+                # Reemplazar con config guardada
+                if not (self.current_config_dir.exists() and (self.current_config_dir / "xfce4").exists()):
+                    print("❌ No existe configuración guardada")
+                    input("Presione Enter para continuar...")
+                    return
+                
+                confirm = input("¿Reemplazar con config guardada? (s/N): ")
+                if confirm.lower() == 's':
+                    print(f"🔄 Reemplazando {self.local_xfce_dir}...")
+                    
+                    # Eliminar configuración local
+                    if self.local_xfce_dir.exists():
+                        shutil.rmtree(self.local_xfce_dir)
+                    
+                    # Copiar configuración guardada
+                    shutil.copytree(self.current_config_dir / "xfce4", self.local_xfce_dir)
+                    
+                    size = sum(f.stat().st_size for f in self.local_xfce_dir.rglob('*') if f.is_file())
+                    size_mb = size / (1024 * 1024)
+                    
+                    print("✅ Configuración de este repo reemplazada exitosamente")
+                    print(f"   Tamaño: {size_mb:.2f} MB")
+                else:
+                    print("❌ Operación cancelada")
             
-            print("✅ xfce4 local reemplazado exitosamente")
-            print(f"   Tamaño: {size_mb:.2f} MB")
+            elif choice == 2:
+                # Reemplazar con backup
+                self.replace_from_backups()
             
-        except Exception as e:
-            print(f"❌ Error al reemplazar xfce4 local: {e}")
+            else:
+                print("❌ Opción inválida")
+        
+        except ValueError:
+            print("❌ Opción inválida")
+        
+        input("Presione Enter para continuar...")
+    
+    def replace_from_backups(self):
+        """Muestra submenú de backups para reemplazar configuración local"""
+        if not self.backup_dir.exists():
+            print("❌ No existe la carpeta de backups")
+            input("Presione Enter para continuar...")
+            return
+        
+        backups = [d for d in self.backup_dir.iterdir() if d.is_dir()]
+        backups.sort(reverse=True)  # Más recientes primero
+        
+        if not backups:
+            print("❌ No hay backups disponibles")
+            input("Presione Enter para continuar...")
+            return
+        
+        print("\n💾 Selecciona backup para reemplazar:")
+        for i, backup in enumerate(backups, 1):
+            backup_date = backup.stat().st_mtime
+            date_str = datetime.fromtimestamp(backup_date).strftime("%Y-%m-%d %H:%M")
+            print(f"   {i}. {backup.name} ({date_str})")
+        
+        print(f"   {len(backups) + 1}. Volver al menú anterior")
+        
+        try:
+            choice = int(input(f"\nSelecciona opción (1-{len(backups) + 1}): "))
+            
+            if choice == len(backups) + 1:
+                return
+            
+            if 1 <= choice <= len(backups):
+                selected_backup = backups[choice - 1]
+                confirm = input(f"¿Reemplazar con backup '{selected_backup.name}'? (s/N): ")
+                
+                if confirm.lower() == 's':
+                    print(f"🔄 Reemplazando {self.local_xfce_dir}...")
+                    
+                    # Eliminar configuración local
+                    if self.local_xfce_dir.exists():
+                        shutil.rmtree(self.local_xfce_dir)
+                    
+                    # Copiar backup seleccionado
+                    shutil.copytree(selected_backup, self.local_xfce_dir)
+                    
+                    size = sum(f.stat().st_size for f in self.local_xfce_dir.rglob('*') if f.is_file())
+                    size_mb = size / (1024 * 1024)
+                    
+                    print("✅ Configuración de este repo reemplazada desde backup")
+                    print(f"   Tamaño: {size_mb:.2f} MB")
+                else:
+                    print("❌ Operación cancelada")
+        
+        except ValueError:
+            print("❌ Opción inválida")
         
         input("Presione Enter para continuar...")
     
@@ -196,32 +270,148 @@ class XFCEConfigManager:
         
         input("Presione Enter para continuar...")
     
+    def restore_from_saved_configs(self):
+        """Muestra submenú de configs guardadas"""
+        if not (self.current_config_dir.exists() and (self.current_config_dir / "xfce4").exists()):
+            print("❌ No existen configuraciones guardadas")
+            input("Presione Enter para continuar...")
+            return
+        
+        print("\n📦 CONFIGURACIONES GUARDADAS:")
+        print("="*50)
+        
+        # Obtener fecha de la configuración guardada
+        config_path = self.current_config_dir / "xfce4"
+        config_date = config_path.stat().st_mtime
+        date_str = datetime.fromtimestamp(config_date).strftime("%d/%m/%Y %H:%M:%S")
+        
+        print("  1. " + date_str)
+        print("  2. Volver")
+        print("="*50)
+        
+        try:
+            choice = int(input("\n🔢 Elegí configuración: "))
+            
+            if choice == 1:
+                confirm = input(f"¿Restaurar configuración guardada ({date_str})? (s/N): ")
+                if confirm.lower() == 's':
+                    print("🔄 Restaurando configuración guardada...")
+                    
+                    # Eliminar configuración actual
+                    if self.xfce_config_path.exists():
+                        shutil.rmtree(self.xfce_config_path)
+                    
+                    # Copiar configuración guardada
+                    shutil.copytree(config_path, self.xfce_config_path)
+                    
+                    print("✅ Configuración restaurada exitosamente")
+                    print("⚠️  Reinicia tu sesión o XFCE para que los cambios se apliquen")
+                else:
+                    print("❌ Operación cancelada")
+            
+            elif choice == 2:
+                return
+            
+            else:
+                print("❌ Opción inválida")
+        
+        except ValueError:
+            print("❌ Opción inválida")
+        
+        input("Presione Enter para continuar...")
+    
+    def restore_from_local_configs(self):
+        """Muestra submenú de configs locales disponibles"""
+        configuraciones_dir = Path("Configuraciones")
+        
+        if not configuraciones_dir.exists():
+            print("❌ No existe la carpeta Configuraciones/")
+            input("Presione Enter para continuar...")
+            return
+        
+        # Obtener todas las carpetas dentro de Configuraciones/
+        configs = [d for d in configuraciones_dir.iterdir() if d.is_dir()]
+        
+        if not configs:
+            print("❌ No hay configuraciones disponibles en Configuraciones/")
+            input("Presione Enter para continuar...")
+            return
+        
+        configs.sort(key=lambda x: x.stat().st_mtime, reverse=True)  # Más recientes primero
+        
+        print("\n📂 CONFIGURACIONES DISPONIBLES:")
+        print("="*50)
+        
+        for i, config in enumerate(configs, 1):
+            config_date = config.stat().st_mtime
+            date_str = datetime.fromtimestamp(config_date).strftime("%d/%m/%Y %H:%M:%S")
+            print(f"  {i}. {config.name} ({date_str})")
+        
+        print(f"  {len(configs) + 1}. Volver")
+        print("="*50)
+        
+        try:
+            choice = int(input("\n🔢 Elegí configuración: "))
+            
+            if choice == len(configs) + 1:
+                return
+            
+            if 1 <= choice <= len(configs):
+                selected_config = configs[choice - 1]
+                config_date = selected_config.stat().st_mtime
+                date_str = datetime.fromtimestamp(config_date).strftime("%d/%m/%Y %H:%M:%S")
+                
+                confirm = input(f"¿Restaurar '{selected_config.name}' ({date_str})? (s/N): ")
+                if confirm.lower() == 's':
+                    print(f"🔄 Restaurando '{selected_config.name}'...")
+                    
+                    # Eliminar configuración actual
+                    if self.xfce_config_path.exists():
+                        shutil.rmtree(self.xfce_config_path)
+                    
+                    # Copiar configuración seleccionada
+                    shutil.copytree(selected_config, self.xfce_config_path)
+                    
+                    print("✅ Configuración restaurada exitosamente")
+                    print("⚠️  Reinicia tu sesión o XFCE para que los cambios se apliquen")
+                else:
+                    print("❌ Operación cancelada")
+            
+            else:
+                print("❌ Opción inválida")
+        
+        except ValueError:
+            print("❌ Opción inválida")
+        
+        input("Presione Enter para continuar...")
+    
     def restore_config(self):
         """Restaura configuración desde current_config, backups o xfce4 local"""
-        print("📁 Selecciona configuración para restaurar:")
+        print("📁 Selecciona configuración para restaurar a tu sistema:")
+        print(f"📂 Se restaurará en: {self.xfce_config_path}")
         
         options = []
         
         # Agregar configuración guardada si existe
         if self.current_config_dir.exists() and (self.current_config_dir / "xfce4").exists():
-            options.append(("Configuración guardada (current_config)", self.current_config_dir / "xfce4"))
+            options.append("Configs guardadas en este repo")
         
         # Agregar xfce4 local si existe
         if self.local_xfce_dir.exists():
-            options.append(("Configuración local (xfce4/)", self.local_xfce_dir))
+            options.append("Configs disponibles en este repo")
         
         # Agregar opción de backups si existen
         if self.backup_dir.exists():
             backup_count = len([d for d in self.backup_dir.iterdir() if d.is_dir()])
             if backup_count > 0:
-                options.append(("Backups", None))  # None para manejar specially
+                options.append("Backups en este repo")
         
         if not options:
             print("❌ No hay configuraciones disponibles")
             input("Presione Enter para continuar...")
             return
         
-        for i, (name, _) in enumerate(options, 1):
+        for i, name in enumerate(options, 1):
             print(f"   {i}. {name}")
         
         print(f"   {len(options) + 1}. Volver al menú principal")
@@ -233,28 +423,14 @@ class XFCEConfigManager:
                 return
             
             if 1 <= choice <= len(options):
-                selected_name, config_path = options[choice - 1]
+                selected_name = options[choice - 1]
                 
-                # Si es backups, ir al submenú
-                if selected_name == "Backups":
+                if selected_name == "Configs guardadas en este repo":
+                    self.restore_from_saved_configs()
+                elif selected_name == "Configs disponibles en este repo":
+                    self.restore_from_local_configs()
+                elif selected_name == "Backups en este repo":
                     self.restore_from_backups()
-                    return
-                
-                confirm = input(f"¿Restaurar '{selected_name}'? (s/N): ")
-                if confirm.lower() == 's':
-                    print("🔄 Restaurando configuración...")
-                    
-                    # Eliminar configuración actual
-                    if self.xfce_config_path.exists():
-                        shutil.rmtree(self.xfce_config_path)
-                    
-                    # Copiar configuración seleccionada
-                    shutil.copytree(config_path, self.xfce_config_path)
-                    
-                    print("✅ Configuración restaurada exitosamente")
-                    print("⚠️  Reinicia tu sesión o XFCE para que los cambios se apliquen")
-                else:
-                    print("❌ Operación cancelada")
             
         except ValueError:
             print("❌ Opción inválida")
@@ -306,31 +482,32 @@ class XFCEConfigManager:
         """Muestra el menú principal"""
         while True:
             print("\n" + "="*50)
-            print("    XFCE CONFIGURATION MANAGER")
+            print("🎬 XFCE CONFIGURATION MANAGER - 🐧 Linux")
             print("="*50)
             
             # Mostrar estado
             current_status = "✅" if self.xfce_config_path.exists() else "❌"
-            print(f"Configuración XFCE actual: {current_status}")
+            print(f"Configuración en tu sistema: {current_status}")
+            print(f"📍 Ruta: {self.xfce_config_path}")
             
             backup_count = len(list(self.backup_dir.glob("*"))) if self.backup_dir.exists() else 0
-            print(f"Backups disponibles: {backup_count}")
+            print(f"Backups en este repo: {backup_count}")
             
             current_config_status = "✅" if (self.current_config_dir / "xfce4").exists() else "❌"
-            print(f"Configuración guardada: {current_config_status}")
+            print(f"Configs guardadas en este repo: {current_config_status}")
             
             local_xfce_status = "✅" if self.local_xfce_dir.exists() else "❌"
-            print(f"Configuración local (xfce4/): {local_xfce_status}")
+            print(f"Configs disponibles en este repo: {local_xfce_status}")
             
             print("\n" + "-"*30)
-            print("  1. Guardar configuración")
-            print("  2. Restaurar configuración")
-            print("  3. Reemplazar xfce4 local")
+            print("  1. Guardar config de tu sistema")
+            print("  2. Restaurar config a tu sistema")
+            print("  3. Reemplazar config de este repo")
             print("  4. Salir")
             print("-"*30)
             
             try:
-                choice = int(input("\nSelecciona una opción: "))
+                choice = int(input("\n🔢 Seleccioná una opción: "))
                 
                 if choice == 1:
                     self.save_current_config()
